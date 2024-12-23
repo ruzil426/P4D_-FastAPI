@@ -1,59 +1,72 @@
-from fastapi import APIRouter, Depends, status, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, Form
+from fastapi.responses import RedirectResponse
+from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from backend.db_depends import get_db
-from typing import Annotated
 from models.task import Task
-from models.subtask import Subtask
-from schemas import *
-from sqlalchemy import insert, select, update, delete
-from slugify import slugify
-from fastapi.templating import Jinja2Templates
+from datetime import datetime
+import uuid
 
-router = APIRouter(prefix='/task', tags=['task'])
+router = APIRouter()
+templates = Jinja2Templates(directory="templates")
 
-@router.get("/all_tasks", response_model=list[TaskResponse])
-async def get_all_tasks(db: Annotated[Session, Depends(get_db)]):
-    tasks = db.execute(select(Task)).scalars().all()
-    if not tasks:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tasks not found.")
-    return tasks
+@router.get("/")
+async def read_tasks(request: Request, db: Session = Depends(get_db)):
+    tasks = db.query(Task).order_by(Task.created_date.desc()).all()
+    return templates.TemplateResponse("tasks.html", {"request": request, "tasks": tasks})
 
-@router.post("/create_task", response_model=TaskResponse)
-async def create_task(db: Annotated[Session, Depends(get_db)], creating_task: CreateTask):
-    item = db.execute(insert(Task).values(
-        name=creating_task.name,
-        due_date=creating_task.due_date,
-        lead_time=creating_task.lead_time,
-        check_mark=creating_task.check_mark,
-        slug=slugify(creating_task.name)
-    ))
+@router.get("/task/create")
+async def create_task_form(request: Request):
+    return templates.TemplateResponse("task_form.html", {"request": request, "task": None})
+
+@router.post("/task/create")
+async def create_task(
+        request: Request,
+        name: str = Form(...),
+        due_date: str = Form(None),
+        lead_time: str = Form(None),
+        db: Session = Depends(get_db)
+):
+    task = Task(
+        name=name,
+        due_date=datetime.fromisoformat(due_date) if due_date else None,
+        lead_time=datetime.strptime(lead_time, "%H:%M").time() if lead_time else None,
+        slug=str(uuid.uuid4())
+    )
+    db.add(task)
     db.commit()
-    db.refresh(item)
-    return item
+    return RedirectResponse(url="/", status_code=303)
 
-@router.put("/update_task", response_model=TaskResponse)
-async def update_task(request: Request, db: Annotated[Session, Depends(get_db)], task_id: int, updating_task: UpdateTask):
-    task = db.scalar(select(Task).where(Task.id == task_id))
-    if task is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tasks not found.")
-    db.execute(update(Task).where(Task.id == task_id).values(
-        name=updating_task.name,
-        due_date=updating_task.due_date,
-        lead_time=updating_task.lead_time,
-        check_mark=updating_task.check_mark,
-    ))
+@router.get("/task/{task_id}/edit")
+async def edit_task_form(
+        request: Request,
+        task_id: int,
+        db: Session = Depends(get_db)
+):
+    task = db.query(Task).filter(Task.id == task_id).first()
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    return templates.TemplateResponse("task_form.html", {"request": request, "task": task})
+
+@router.post("/task/{task_id}/edit")
+async def edit_task(
+        request: Request,
+        task_id: int,
+        name: str = Form(...),
+        due_date: str = Form(None),
+        lead_time: str = Form(None),
+        check_mark: bool = Form(False),
+        db: Session = Depends(get_db)
+):
+    task = db.query(Task).filter(Task.id == task_id).first()
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    task.name = name
+    task.due_date = datetime.fromisoformat(due_date) if due_date else None
+    task.lead_time = datetime.strptime(lead_time, "%H:%M").time() if lead_time else None
+    task.check_mark = check_mark
+
     db.commit()
-    db.refresh(task)
-    # return {'status_code': status.HTTP_200_OK, 'transaction': 'Task update is successful!'}
-    return task
-
-@router.put("/delete_task", response_model=StatusResponse)
-async def delete_task(db: Annotated[Session, Depends(get_db)], task_id: int):
-    task = db.scalar(select(Task).where(Task.id == task_id))
-    if task is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tasks not found.")
-    db.execute(delete(Task).where(Task.id == task_id))
-    db.execute(delete(Subtask).where(Subtask.task_id == task_id))
-    db.commit()
-    return {'status_code': status.HTTP_200_OK, 'transaction': 'Task delete is successful!'}
-
+    return RedirectResponse(url="/", status_code=303)

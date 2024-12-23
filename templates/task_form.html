@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+
+{% block title %}{{ "Изменить задачу" if task else "Создать задачу" }}{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h2 class="card-title">{{ "Изменить задачу" if task else "Создать задачу" }}</h2>
+            </div>
+            <div class="card-body">
+                <form method="POST" class="needs-validation" novalidate>
+                    <div class="mb-3">
+                        <label for="name" class="form-label">Название задачи</label>
+                        <input type="text"
+                               class="form-control"
+                               id="name"
+                               name="name"
+                               value="{{ task.name if task else '' }}"
+                               required>
+                        <div class="invalid-feedback">
+                            Пожалуйста, введите название задачи
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="due_date" class="form-label">Срок выполнения</label>
+                        <input type="date"
+                               class="form-control"
+                               id="due_date"
+                               name="due_date"
+                               value="{{ task.due_date.strftime('%Y-%m-%d') if task and task.due_date else '' }}">
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="lead_time" class="form-label">Время</label>
+                        <input type="time"
+                               class="form-control"
+                               id="lead_time"
+                               name="lead_time"
+                               value="{{ task.lead_time.strftime('%H:%M') if task and task.lead_time else '' }}">
+                    </div>
+
+                    {% if task %}
+                    <div class="mb-3 form-check">
+                        <input type="checkbox"
+                               class="form-check-input"
+                               id="check_mark"
+                               name="check_mark"
+                               {% if task.check_mark %}checked{% endif %}>
+                        <label class="form-check-label" for="check_mark">Выполнено</label>
+                    </div>
+                    {% endif %}
+
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                        <a href="{{ url_for('read_tasks') }}" class="btn btn-outline-secondary">Отмена</a>
+                        <button type="submit" class="btn btn-primary">
+                            {{ "Сохранить" if task else "Создать" }}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -7,7 +7,6 @@ from models.subtask import Subtask
 from schemas import *
 from sqlalchemy import insert,select, update, delete
 from slugify import slugify
-# from sqlalchemy.exc import SQLAlchemyError
 
 router = APIRouter(prefix="/subtask", tags=["subtask"])
 
